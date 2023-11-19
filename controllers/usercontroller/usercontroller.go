@@ -1,9 +1,9 @@
 package usercontroller
 
 import (
-	"encoding/json"
 	"github.com/labstack/echo/v4"
 	"go-nabati/models"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"net/http"
 )
@@ -42,7 +42,14 @@ func Create(ctx echo.Context) error {
 			"message": err.Error(),
 		})
 	}
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
+			"message": "Failed to hash the password",
+		})
+	}
 
+	user.Password = string(hashedPassword)
 	models.DB.Create(&user)
 	return ctx.JSON(http.StatusOK, map[string]interface{}{
 		"message": "User created successfully",
@@ -59,6 +66,17 @@ func Update(ctx echo.Context) error {
 		})
 	}
 
+	if user.Password != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, map[string]interface{}{
+				"message": "Failed to hash the new password",
+			})
+		}
+
+		user.Password = string(hashedPassword)
+	}
+
 	if models.DB.Model(&user).Where("id = ?", id).Updates(&user).RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]interface{}{
 			"message": "User failed to update",
@@ -72,18 +90,14 @@ func Update(ctx echo.Context) error {
 
 func Delete(ctx echo.Context) error {
 	var user models.User
+	id := ctx.Param("id")
 
-	var input struct {
-		Id json.Number
-	}
-
-	if err := ctx.Bind(&input); err != nil {
+	if err := ctx.Bind(&user); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]interface{}{
 			"message": err.Error(),
 		})
 	}
 
-	id, _ := input.Id.Int64()
 	if models.DB.Delete(&user, id).RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]interface{}{
 			"message": "User failed to delete",
