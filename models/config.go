@@ -32,7 +32,7 @@ func ConnectDB() {
 		panic(err)
 	}
 
-	err = db.AutoMigrate(&User{})
+	err = db.AutoMigrate(&User{}, &UniqueCode{}, &Redemption{})
 	if err != nil {
 		panic(err)
 	}
